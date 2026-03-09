@@ -23,6 +23,8 @@
   "scoreboard_captures_label": "Captures",
   "scoreboard_capture_assists_label": "Assists",
   "scoreboard_carrier_kills_label": "Carrier kills",
+  "scoreboard__kills_label": "Carrier kills",
+  "scoreboard_deaths_label": "Carrier kills",
   "red_flag_position": "Team red flag position X{} Y{} Z{}",
   "blue_flag_position": "Team blue flag position X{} Y{} Z{}",
   "flag_initialized": "Flag initialized for team {} at position: {}",
