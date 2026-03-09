@@ -7340,8 +7340,8 @@ function LoadGameModeConfig(config: GameModeConfig): void {
             mod.Message(mod.stringkeys.scoreboard_captures_label), 
             mod.Message(mod.stringkeys.scoreboard_capture_assists_label),
             mod.Message(mod.stringkeys.scoreboard_carrier_kills_label),
-            mod.Message("Kills"),
-            mod.Message("Deaths")
+            mod.Message(mod.stringkeys.scoreboard__kills_label),
+            mod.Message(mod.stringkeys.scoreboard_deaths_label)
         );
 
             // Sort by flag captures
@@ -7356,7 +7356,7 @@ function LoadGameModeConfig(config: GameModeConfig): void {
             mod.Message(mod.stringkeys.scoreboard_captures_label), 
             mod.Message(mod.stringkeys.scoreboard_capture_assists_label),
             mod.Message(mod.stringkeys.scoreboard_carrier_kills_label),
-            mod.Message("Kills")
+            mod.Message(mod.stringkeys.scoreboard__kills_label)
         );
         mod.SetScoreboardColumnWidths(0.2, 0.2, 0.2, 0.4);
 
