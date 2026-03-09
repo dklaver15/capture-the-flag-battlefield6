@@ -1,7 +1,6 @@
 //@ts-ignore
 import * as modlib from 'modlib';
 
-
 /* 
  * Capture the Flag Game Mode
  * 
@@ -72,7 +71,7 @@ const TEAM_BALANCE_CHECK_INTERVAL = 10;                             // Check bal
 const VEHICLE_BLOCK_CARRIER_DRIVING: boolean = true;
 
 // Team switch stations
-const SWITCH_OFFSET_TEAM1 = mod.CreateVector(-57.66, 0, -6.43);
+const SWITCH_OFFSET_TEAM1 = mod.CreateVector(-57.66, 1, -6.43);
 const SWITCH_OFFSET_TEAM2 = mod.CreateVector(30.32, 0, 12.86);
 const SWITCH_ICON_HEIGHT = 3.0;
 const SWITCH_INTERACT_HEIGHT = 1.3;
@@ -2395,11 +2394,6 @@ async function SecondUpdate(): Promise<void> {
 
         let currentTime = GetCurrentTime();
         let timeDelta = currentTime - lastTickTime;        
-        
-        // Periodic team balance check
-        if (TEAM_AUTO_BALANCE) {
-            CheckAndBalanceTeams();
-        }
 
         // Periodically update scoreboard for players
         RefreshScoreboard();
@@ -2483,6 +2477,10 @@ export function OnPlayerJoinGame(eventPlayer: mod.Player): void {
     // Note: WorldIcon refresh and UI visibility fix now happens on first deploy, not on join
     // This prevents icons from disappearing when refreshed before player deploys
 
+    if (TEAM_AUTO_BALANCE) {
+            CheckAndBalanceTeams();
+        }
+
     // Refresh scoreboard to update new player team entry and score
     RefreshScoreboard();
 }
@@ -2562,6 +2560,12 @@ export function OnPlayerDied(
     if(DEBUG_MODE)
         mod.DisplayHighlightedWorldLogMessage(mod.Message(mod.stringkeys.player_died, eventPlayer));
     
+    // Increment death count for the victim
+    let victim = JSPlayer.get(eventPlayer);
+    if(victim){
+        victim.score.deaths += 1;
+    }
+
     // Increment flag carrier kill score
     let killer = JSPlayer.get(eventOtherPlayer);
     if(killer){
@@ -2798,7 +2802,6 @@ export function GetPlayersInTeam(team: mod.Team) {
     return teamMembers;
 }
 
-
 //==============================================================================================
 // JSPLAYER CLASS
 //==============================================================================================
@@ -2808,12 +2811,14 @@ class PlayerScore {
     capture_assists: number
     flag_carrier_kills: number
     kills: number;
+    deaths: number;
 
-    constructor(captures: number = 0, capture_assists: number = 0, flag_carrier_kills:number = 0, kills = 0){
+    constructor(captures: number = 0, capture_assists: number = 0, flag_carrier_kills:number = 0, kills = 0, deaths = 0){
         this.captures = captures;
         this.capture_assists = capture_assists
         this.flag_carrier_kills = flag_carrier_kills
         this.kills = kills;
+        this.deaths = deaths;
     }
 }
 
@@ -2932,9 +2937,9 @@ function UpdatePlayerScoreboard(player: mod.Player){
     let teamId = modlib.getTeamId(mod.GetTeam(player));
     if(jsPlayer){
         if(teams.size >= 3){
-            mod.SetScoreboardPlayerValues(player, teamId, jsPlayer.score.captures, jsPlayer.score.capture_assists, jsPlayer.score.flag_carrier_kills);
+            mod.SetScoreboardPlayerValues(player, teamId, jsPlayer.score.captures, jsPlayer.score.kills, jsPlayer.score.deaths);
         } else {
-            mod.SetScoreboardPlayerValues(player, jsPlayer.score.captures, jsPlayer.score.capture_assists, jsPlayer.score.flag_carrier_kills);
+            mod.SetScoreboardPlayerValues(player, jsPlayer.score.captures, jsPlayer.score.kills, jsPlayer.score.deaths);
         }
     }
 }
@@ -7332,10 +7337,12 @@ function LoadGameModeConfig(config: GameModeConfig): void {
                 mod.Message(GetTeamName(team2))
             );
             mod.SetScoreboardColumnNames(
-                mod.Message(mod.stringkeys.scoreboard_captures_label), 
-                mod.Message(mod.stringkeys.scoreboard_capture_assists_label),
-                mod.Message(mod.stringkeys.scoreboard_carrier_kills_label)
-            );
+            mod.Message(mod.stringkeys.scoreboard_captures_label), 
+            mod.Message(mod.stringkeys.scoreboard_capture_assists_label),
+            mod.Message(mod.stringkeys.scoreboard_carrier_kills_label),
+            mod.Message("Kills"),
+            mod.Message("Deaths")
+        );
 
             // Sort by flag captures
             //mod.SetScoreboardSorting(1);
@@ -7348,7 +7355,8 @@ function LoadGameModeConfig(config: GameModeConfig): void {
             mod.Message(mod.stringkeys.scoreboard_team_label),
             mod.Message(mod.stringkeys.scoreboard_captures_label), 
             mod.Message(mod.stringkeys.scoreboard_capture_assists_label),
-            mod.Message(mod.stringkeys.scoreboard_carrier_kills_label)
+            mod.Message(mod.stringkeys.scoreboard_carrier_kills_label),
+            mod.Message("Kills")
         );
         mod.SetScoreboardColumnWidths(0.2, 0.2, 0.2, 0.4);
 
