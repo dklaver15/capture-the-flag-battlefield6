@@ -112,6 +112,10 @@ const SPAWN_VALIDATION_HEIGHT_OFFSET = 0.75;                        // Height of
 const VEHICLE_DRIVER_SEAT = 0;                                      // Driver seat index in vehicles
 const VEHICLE_FIRST_PASSENGER_SEAT = 1;                             // First passenger seat index
 
+// Transport helicopter restriction
+const CARRIER_BLOCK_TRANSPORT_HELI: boolean = true;                 // Completely block flag carriers from entering transport helicopters
+const TRANSPORT_HELI_MIN_SEATS = 5;                                 // Vehicles with this many or more seats are considered transport helis
+
 // Update rates
 const TICK_RATE = 0.032;                                            // ~30fps update rate for carrier position updates (portal server tickrate)
 
@@ -2408,18 +2412,25 @@ async function SecondUpdate(): Promise<void> {
             flag.SlowUpdate(timeDelta);
         }
 
-        // Verify player is not driving
-        // Fix for some vehicles not trigger events
-        if(VEHICLE_BLOCK_CARRIER_DRIVING){
-            JSPlayer.getAllAsArray().forEach((jsPlayer: JSPlayer) => {
-                if (IsCarryingAnyFlag(jsPlayer.player)) {      
-                    if (mod.GetPlayerVehicleSeat(jsPlayer.player) === VEHICLE_DRIVER_SEAT) {
+        // Verify player is not driving or in a transport helicopter
+        // Fix for some vehicles not triggering events
+        JSPlayer.getAllAsArray().forEach((jsPlayer: JSPlayer) => {
+            if (IsCarryingAnyFlag(jsPlayer.player)) {
+                let playerVehicle = mod.GetVehicleFromPlayer(jsPlayer.player);
+                if (playerVehicle) {
+                    // Block transport helicopters entirely
+                    if (CARRIER_BLOCK_TRANSPORT_HELI && IsTransportHelicopter(playerVehicle)) {
+                        if (DEBUG_MODE) console.log("Flag carrier detected in transport heli (periodic check), forcing exit");
+                        ForceExitTransportHeli(jsPlayer.player, playerVehicle);
+                    }
+                    // Force to passenger seat in other vehicles
+                    else if (VEHICLE_BLOCK_CARRIER_DRIVING && mod.GetPlayerVehicleSeat(jsPlayer.player) === VEHICLE_DRIVER_SEAT) {
                         if (DEBUG_MODE) console.log("Flag carrier in driver seat, forcing to passenger");
-                        ForceToPassengerSeat(jsPlayer.player, mod.GetVehicleFromPlayer(jsPlayer.player));
+                        ForceToPassengerSeat(jsPlayer.player, playerVehicle);
                     }
                 }
-            });
-        }
+            }
+        });
 
         lastSecondUpdateTime = currentTime;
     }
@@ -2657,11 +2668,20 @@ export function OnPlayerEnterVehicle(
         mod.DisplayHighlightedWorldLogMessage(mod.Message(mod.stringkeys.debug_player_enter_vehicle));
 
     // Check if player is carrying a flag
-    if (IsCarryingAnyFlag(eventPlayer) && VEHICLE_BLOCK_CARRIER_DRIVING) {
-        if (DEBUG_MODE) {
-            console.log("Flag carrier entered vehicle");
+    if (IsCarryingAnyFlag(eventPlayer)) {
+        // Completely block transport helicopters for flag carriers
+        if (CARRIER_BLOCK_TRANSPORT_HELI && IsTransportHelicopter(eventVehicle)) {
+            if (DEBUG_MODE) console.log("Flag carrier tried to enter transport heli, forcing exit");
+            ForceExitTransportHeli(eventPlayer, eventVehicle);
+            return;
         }
-        ForceToPassengerSeat(eventPlayer, eventVehicle);
+
+        if (VEHICLE_BLOCK_CARRIER_DRIVING) {
+            if (DEBUG_MODE) {
+                console.log("Flag carrier entered vehicle");
+            }
+            ForceToPassengerSeat(eventPlayer, eventVehicle);
+        }
     }
 }
 
@@ -2670,11 +2690,20 @@ export function OnPlayerEnterVehicleSeat(
     eventVehicle: mod.Vehicle,
     eventSeat: mod.Object
 ): void {
-    // If player is carrying flag and in driver seat, force to passenger
-    if (IsCarryingAnyFlag(eventPlayer) && VEHICLE_BLOCK_CARRIER_DRIVING) {      
-        if (mod.GetPlayerVehicleSeat(eventPlayer) === VEHICLE_DRIVER_SEAT) {
-            if (DEBUG_MODE) console.log("Flag carrier in driver seat, forcing to passenger");
-            ForceToPassengerSeat(eventPlayer, eventVehicle);
+    if (IsCarryingAnyFlag(eventPlayer)) {
+        // Completely block transport helicopters for flag carriers
+        if (CARRIER_BLOCK_TRANSPORT_HELI && IsTransportHelicopter(eventVehicle)) {
+            if (DEBUG_MODE) console.log("Flag carrier in transport heli seat, forcing exit");
+            ForceExitTransportHeli(eventPlayer, eventVehicle);
+            return;
+        }
+
+        // If player is carrying flag and in driver seat, force to passenger
+        if (VEHICLE_BLOCK_CARRIER_DRIVING) {      
+            if (mod.GetPlayerVehicleSeat(eventPlayer) === VEHICLE_DRIVER_SEAT) {
+                if (DEBUG_MODE) console.log("Flag carrier in driver seat, forcing to passenger");
+                ForceToPassengerSeat(eventPlayer, eventVehicle);
+            }
         }
     }
 }
@@ -2730,6 +2759,27 @@ async function ForceToPassengerSeat(player: mod.Player, vehicle: mod.Vehicle): P
     if (DEBUG_MODE) console.log("No passenger seats available, forcing exit");
 }
 
+
+
+/**
+ * Check if a vehicle is a transport helicopter based on seat count.
+ * Transport helis (Condor/SuperHind) have 5+ seats, ground vehicles have 2-4.
+ */
+function IsTransportHelicopter(vehicle: mod.Vehicle): boolean {
+    return mod.GetVehicleSeatCount(vehicle) >= TRANSPORT_HELI_MIN_SEATS;
+}
+
+/**
+ * Force a flag carrier out of a transport helicopter entirely.
+ * Unlike ForceToPassengerSeat, this removes the player from the vehicle completely.
+ */
+async function ForceExitTransportHeli(player: mod.Player, vehicle: mod.Vehicle): Promise<void> {
+    let delayBeforeExit = TICK_RATE * 2;
+    await mod.Wait(delayBeforeExit);
+    mod.ForcePlayerExitVehicle(player, vehicle);
+    mod.DisplayHighlightedWorldLogMessage(mod.Message(mod.stringkeys.carrier_blocked_transport_heli), player);
+    if (DEBUG_MODE) console.log("Forced flag carrier out of transport helicopter");
+}
 
 
 //==============================================================================================
